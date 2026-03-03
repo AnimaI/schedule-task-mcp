@@ -1,3 +1,5 @@
+import { t } from './i18n.js';
+
 export function getSystemTimeZone(): string {
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -15,7 +17,7 @@ export function formatInTimezone(dateIso: string | undefined, timeZone: string, 
     return fallback;
   }
   try {
-    const formatter = new Intl.DateTimeFormat('zh-CN', {
+    const formatter = new Intl.DateTimeFormat(t.dateLocale, {
       timeZone,
       year: 'numeric',
       month: '2-digit',

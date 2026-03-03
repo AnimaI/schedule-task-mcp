@@ -17,6 +17,7 @@ import * as os from 'os';
 import { TaskScheduler } from './scheduler.js';
 import * as cron from 'node-cron';
 import { formatInTimezone, getSystemTimeZone } from './format.js';
+import { t } from './i18n.js';
 
 // Default database path and timezone
 const DEFAULT_DB_PATH = path.join(os.homedir(), '.schedule-task-mcp', 'tasks.db');
@@ -43,50 +44,50 @@ function truncateText(value: string, limit = 160): string {
   return `${value.slice(0, limit - 3)}...`;
 }
 
-function formatTimestamp(localValue?: string, rawValue?: string, fallback = '暂无记录'): string {
+function formatTimestamp(localValue?: string, rawValue?: string, fallback = t.noRecords): string {
   return localValue ?? rawValue ?? fallback;
 }
 
 function humanReadableStatus(status?: string): string {
   const mapping: Record<string, string> = {
-    scheduled: '已计划',
-    running: '执行中',
-    paused: '已暂停',
-    completed: '已完成',
-    error: '执行失败'
+    scheduled: t.status.scheduled,
+    running: t.status.running,
+    paused: t.status.paused,
+    completed: t.status.completed,
+    error: t.status.error,
   };
-  return status ? `${mapping[status] ?? status} (${status})` : '未知';
+  return status ? `${mapping[status] ?? status} (${status})` : t.unknown;
 }
 
 function humanReadableLastStatus(status?: string | null): string {
-  if (!status) return '暂无';
+  if (!status) return t.none;
   const mapping: Record<string, string> = {
-    success: '成功',
-    error: '失败',
-    running: '执行中'
+    success: t.lastStatus.success,
+    error: t.lastStatus.error,
+    running: t.lastStatus.running,
   };
   return `${mapping[status] ?? status} (${status})`;
 }
 
 function describeTrigger(task: DescribedTask): string {
-  const summary = task.trigger_summary ? `（${task.trigger_summary}）` : '';
+  const summary = task.trigger_summary ? ` (${task.trigger_summary})` : '';
   switch (task.trigger_type) {
     case 'interval':
-      return `间隔任务${summary || '（未配置详细间隔）'}`;
+      return `${t.trigger.interval}${summary || ` (${t.trigger.intervalNoConfig})`}`;
     case 'cron':
-      return `Cron 表达式${summary || ''}`;
+      return `${t.trigger.cron}${summary}`;
     case 'date':
-      return `一次性任务${summary || ''}`;
+      return `${t.trigger.date}${summary}`;
     default:
       return task.trigger_type;
   }
 }
 
 function buildTaskSummary(task: DescribedTask, actionLabel: string): string {
-  const nextRunLabel = formatTimestamp(task.next_run_local, task.next_run, '尚未安排（可能已执行完毕或已停用）');
+  const nextRunLabel = formatTimestamp(task.next_run_local, task.next_run, t.labels.notScheduled);
   const lastRunLabel = formatTimestamp(task.last_run_local, task.last_run);
-  const createdLabel = formatTimestamp(task.created_at_local, task.created_at, '未知');
-  const updatedLabel = formatTimestamp(task.updated_at_local, task.updated_at, '未知');
+  const createdLabel = formatTimestamp(task.created_at_local, task.created_at, t.unknown);
+  const updatedLabel = formatTimestamp(task.updated_at_local, task.updated_at, t.unknown);
   const taskTitle = resolveTaskTitle(task);
 
   const historyCount = Array.isArray(task.history) ? task.history.length : 0;
@@ -99,24 +100,24 @@ function buildTaskSummary(task: DescribedTask, actionLabel: string): string {
   const runDateLocal = triggerConfigLocal.run_date_local ?? (triggerConfig.run_date ? formatTimestamp(undefined, triggerConfig.run_date) : undefined);
 
   const detailLines = [
-    `任务「${taskTitle}」已${actionLabel}：`,
-    `- **任务ID**：${task.id}`,
-    `- **触发类型**：${describeTrigger(task)}`,
-    task.trigger_type === 'cron' && triggerConfig.expression ? `- **Cron 表达式**：${triggerConfig.expression}` : null,
-    task.trigger_type === 'interval' ? `- **间隔配置**：${JSON.stringify(triggerConfig)}` : null,
-    task.trigger_type === 'date' ? `- **执行时间**：${runDateLocal ?? '未指定'}` : null,
-    task.agent_prompt ? `- **任务指令**：${task.agent_prompt}` : null,
-    task.mcp_server && task.mcp_tool ? `- **Legacy MCP 调用**：${task.mcp_server}.${task.mcp_tool}` : null,
-    `- **任务状态**：${humanReadableStatus(task.status)}`,
-    `- **是否启用**：${task.enabled ? '是 (enabled)' : '否 (disabled)'}`,
-    `- **创建时间**：${createdLabel}`,
-    `- **最后更新时间**：${updatedLabel}`,
-    `- **上次执行时间**：${lastRunLabel}`,
-    `- **上次执行状态**：${humanReadableLastStatus(task.last_status)}`,
-    latestHistoryMessage ? `- **上次执行消息**：${latestHistoryMessage}` : null,
-    `- **下次执行时间**：${nextRunLabel}`,
-    `- **历史记录条数**：${historyCount}`,
-    latestHistoryTime ? `- **最近历史时间**：${latestHistoryTime}` : null
+    t.labels.taskAction(taskTitle, actionLabel),
+    `- **${t.labels.taskId}**: ${task.id}`,
+    `- **${t.labels.triggerType}**: ${describeTrigger(task)}`,
+    task.trigger_type === 'cron' && triggerConfig.expression ? `- **${t.labels.cronExpression}**: ${triggerConfig.expression}` : null,
+    task.trigger_type === 'interval' ? `- **${t.labels.intervalConfig}**: ${JSON.stringify(triggerConfig)}` : null,
+    task.trigger_type === 'date' ? `- **${t.labels.executionTime}**: ${runDateLocal ?? t.labels.notSpecified}` : null,
+    task.agent_prompt ? `- **${t.labels.instruction}**: ${task.agent_prompt}` : null,
+    task.mcp_server && task.mcp_tool ? `- **${t.labels.legacyMcp}**: ${task.mcp_server}.${task.mcp_tool}` : null,
+    `- **${t.labels.taskStatus}**: ${humanReadableStatus(task.status)}`,
+    `- **${t.labels.enabled}**: ${task.enabled ? t.labels.enabledYes : t.labels.enabledNo}`,
+    `- **${t.labels.createdAt}**: ${createdLabel}`,
+    `- **${t.labels.updatedAt}**: ${updatedLabel}`,
+    `- **${t.labels.lastRun}**: ${lastRunLabel}`,
+    `- **${t.labels.lastRunStatus}**: ${humanReadableLastStatus(task.last_status)}`,
+    latestHistoryMessage ? `- **${t.labels.lastRunMessage}**: ${latestHistoryMessage}` : null,
+    `- **${t.labels.nextRun}**: ${nextRunLabel}`,
+    `- **${t.labels.historyCount}**: ${historyCount}`,
+    latestHistoryTime ? `- **${t.labels.latestHistory}**: ${latestHistoryTime}` : null
   ].filter(Boolean) as string[];
 
   return detailLines.join('\n');
@@ -703,7 +704,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: JSON.stringify(
-                formatTaskResponse(task, '创建成功', {
+                formatTaskResponse(task, t.actions.created, {
                   message: 'Task created'
                 }),
                 null,
@@ -722,7 +723,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           .map((task) => scheduler.describeTask(task));
 
         const taskEntries = describedTasks.map((task) => ({
-          summary: buildTaskSummary(task, '当前状态'),
+          summary: buildTaskSummary(task, t.actions.currentStatus),
           detail: task
         }));
 
@@ -759,7 +760,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: JSON.stringify(
-                formatTaskResponse(task, '任务详情', {
+                formatTaskResponse(task, t.actions.taskDetails, {
                   message: 'Task fetched'
                 }),
                 null,
@@ -827,7 +828,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: JSON.stringify(
-                formatTaskResponse(task, '更新完成', {
+                formatTaskResponse(task, t.actions.updated, {
                   message: 'Task updated'
                 }),
                 null,
@@ -867,9 +868,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               type: 'text',
               text: JSON.stringify(
                 deleted
-                  ? formatTaskResponse(describedSnapshot, '已删除', {
+                  ? formatTaskResponse(describedSnapshot, t.actions.deleted, {
                     message: 'Task deleted',
-                    detail_note: 'detail 字段为删除前的任务快照'
+                    detail_note: t.actions.deletedNote,
                   })
                   : formatNotFoundResponse(preparedId),
                 null,
@@ -894,7 +895,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: JSON.stringify(
-                formatTaskResponse(task, '历史已清空', {
+                formatTaskResponse(task, t.actions.historyCleared, {
                   message: 'Task history cleared'
                 }),
                 null,
@@ -918,7 +919,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: JSON.stringify(
-                formatTaskResponse(task, '已暂停', {
+                formatTaskResponse(task, t.actions.paused, {
                   message: 'Task paused'
                 }),
                 null,
@@ -942,7 +943,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: JSON.stringify(
-                formatTaskResponse(task, '已恢复', {
+                formatTaskResponse(task, t.actions.resumed, {
                   message: 'Task resumed'
                 }),
                 null,
@@ -992,7 +993,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: 'text',
               text: JSON.stringify(
-                formatTaskResponse(task, '手动执行完成', {
+                formatTaskResponse(task, t.actions.manualExecution, {
                   message: result.message
                 }),
                 null,
@@ -1015,7 +1016,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           result = {
             success: true,
             timezone: TIMEZONE,
-            current_time: timeInTimezone.toLocaleString('zh-CN', { timeZone: TIMEZONE }),
+            current_time: timeInTimezone.toLocaleString(t.dateLocale, { timeZone: TIMEZONE }),
             iso_time: timeInTimezone.toISOString(),
             timestamp: timeInTimezone.getTime()
           };
